@@ -26,7 +26,7 @@ def callback(pose_target):
     group.go(wait=True)
 
     #prints the current position
-    print group.get_current_pose()
+    print group.get_current_pose(end_effector_link="ee_tip")
 
     #Sleeps in seconds
     rospy.sleep(5)
@@ -34,15 +34,16 @@ def callback(pose_target):
 def move_action(action):
     
     #how much the robot should move for each step
-    step_size = 0.0005
+    step_size = -0.25
 
     #The search space needs to correspend to what's in the boundaries dict
     #boundaries = {'x_low': 0.496, 'x_high': 0.498, 'y_low': 0.003, 'y_high': 0.005, 'z_low': 0.0055, 'z_high': 0.0075}
     #boundaries = {'x_low': 0.300, 'x_high': 0.600, 'y_low': 0.003, 'y_high': 0.400, 'z_low': 0.005, 'z_high': 0.300}
 
     #Get the current posistion
-    current_pose = group.get_current_pose()
+    current_joint_value = group.get_current_joint_values()
 
+    print current_joint_value
     #6 different move actions. if statements to check which one is wanted.
     #Action 0: move step_size in x+ direction
     #Action 1: move step_size in x- direction
@@ -51,34 +52,13 @@ def move_action(action):
     #Action 4: move step_size in z+ direction
     #Action 5: move step_size in z- direction
 
-    if action.data == 0:
-        current_pose.pose.position.x = current_pose.pose.position.x + step_size
-        move(current_pose)
-
-    elif action.data == 1:
-        current_pose.pose.position.x = current_pose.pose.position.x - step_size
-        move(current_pose)
-
-    elif action.data == 2:
-        current_pose.pose.position.y = current_pose.pose.position.y + step_size
-        move(current_pose)
-
-    elif action.data == 3:
-        current_pose.pose.position.y = current_pose.pose.position.y - step_size
-        move(current_pose)
-
-    elif action.data == 4:
-        current_pose.pose.position.z = current_pose.pose.position.z + step_size
-        move(current_pose)
-
-    elif action.data == 5:
-        current_pose.pose.position.z = current_pose.pose.position.z - step_size
-        move(current_pose)
-
+    if action.data == 6:
+        current_joint_value[0] = current_joint_value[0] + step_size
+        move(current_joint_value)
     #Returns the pose after the action has been accounted for
     #return current_pose
 
-def move(pose_target):
+def move(joint_value_target):
     #if move_action returned false, the robot should not move and this function then returns False
     #if pose_target == False:
     #    print "out of boundary"
@@ -86,7 +66,7 @@ def move(pose_target):
 
     
     #send the position to the group object
-    group.set_pose_target(pose_target)
+    group.set_joint_value_target(joint_value_target)
 
     #Calculate the plan to the position
     plan1 = group.plan()
@@ -97,7 +77,7 @@ def move(pose_target):
     #when playing around it is nice to print the current position
     #print group.get_current_pose()
     print "Pose target:"
-    print pose_target
+    print joint_value_target
     #rospy.sleep(0.5)    
 
 
@@ -105,7 +85,7 @@ def move(pose_target):
 moveit_commander.roscpp_initialize(sys.argv)
 
 #initializing this as a ROS node.
-rospy.init_node('move_group_python_interface_tutorial', anonymous=True)
+rospy.init_node('Screw_control_node', anonymous=True)
 
 #creating a RobotCommander object, which acts as an interface to our robot.
 robot = moveit_commander.RobotCommander()
@@ -114,7 +94,7 @@ robot = moveit_commander.RobotCommander()
 scene = moveit_commander.PlanningSceneInterface() 
 
 #Creating a MoveGroupCommander object, which is an interface to the manipulator group of joints 
-group = moveit_commander.MoveGroupCommander("arm")
+group = moveit_commander.MoveGroupCommander("tool")
 
 # print the end effector link so we know what frame is used (should be ee_tip)
 print group.get_end_effector_link()

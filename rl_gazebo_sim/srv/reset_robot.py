@@ -21,7 +21,24 @@ class RobotReset ():
         self.robot = moveit_commander.RobotCommander()
         
         # Creating a MoveGroupCommander object, which is an interface to the manipulator group of joints 
-        self.group = moveit_commander.MoveGroupCommander("arm")
+        self.group = None
+        while self.group == None:
+            try:
+                self.group = moveit_commander.MoveGroupCommander("arm")
+            except Exception as e:
+                # If the movegroup is not ready yet wait 1 sec and try again. 
+                print(e)
+                print('trying again in 1 sec')
+                rospy.sleep(1)
+        
+
+        self.pauser_srv = rospy.ServiceProxy('/gazedo/pause_physics', Empty)
+
+        self.reset_world_srv = rospy.ServiceProxy('/gazebo/reset_world', Empty)
+        
+        self.reset_simulation_srv = rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
+        
+        self.unpauser_srv = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
 
         # Fetch the path to the robot urdf file
         ros_pack = rospkg.RosPack()
@@ -48,7 +65,7 @@ class RobotReset ():
         # self.spawner.call(self.robot_name, self.robot_urdf, "", self.robot_pose, "world")
 
         # Make this class a service with the self.reset_func as the call function. 
-        s = rospy.Service('reset_robot', Empty, self.reset_func_mover)
+        s = rospy.Service('reset_robot', Trigger, self.reset_func_mover)
         print "Ready to reset robot."
 
     # Callback function for the subscriber. This is used when using the node as
@@ -65,13 +82,23 @@ class RobotReset ():
         """
         
         # Dict describing the joint states for the robot in home position. 
-        joint_target = {'shoulder_pan_joint' : 0,
-                        'shoulder_lift_joint': -1.5707,
-                        'elbow_joint'       : 1.5707,
-                        'wrist_1_joint'     : -1.5707,
-                        'wrist_2_joint'     : -1.5707,
-                        'wrist_3_joint'     : 0 }
+        # Joint target to reset to just above screw
         
+        joint_target = {'shoulder_pan_joint' : -0.219421051071226,
+                        'shoulder_lift_joint': -1.4877301174597237,
+                        'elbow_joint'       : 1.9075886985532051,
+                        'wrist_1_joint'     : -1.9902674414916985,
+                        'wrist_2_joint'     : -1.5717293284405551,
+                        'wrist_3_joint'     : -0.10938365036715503 }
+        '''
+        #Joint target to reset to corner of box:
+        joint_target = {'shoulder_pan_joint' : -0.19561383140555133,
+                        'shoulder_lift_joint': -1.5215440713145796,
+                        'elbow_joint'       : 1.9440776426924025,
+                        'wrist_1_joint'     : -1.9919776630124097,
+                        'wrist_2_joint'     : -1.5712127876636952,
+                        'wrist_3_joint'     : -0.09724737704377517 }
+        '''
         print('The joint target is: %s' % joint_target)
         
         #send the position to the group object
@@ -85,50 +112,18 @@ class RobotReset ():
         self.group.go(wait=True)
         rospy.sleep(0.1)
 
-    def reset_func_respawner(self, req):
-        """Function respawns the robot upon reset call.
-        This way of resetting the robot seems to break the controller.
-        TODO find a way to fix this, maybe by relaunching the controllers. 
-        
-        Arguments:
-            req {req} -- Input from service call. Not used.
-        """
+        # Reset the screw and the world.
+        self.reset_world_srv.call()
 
-        print('Pausing')
-        rospy.ServiceProxy('/gazedo/pause_physics', Empty)
-        time.sleep(1)
+        #return true to indicate success
+        return [True,'succeded resetting the robot.']
 
-        # print('Stopping controllers')
-        # controller_switcher = rospy.ServiceProxy('controller_manager/switch_controller',SwitchController)
-        # controller_switcher.call([], ["arm_controller","joint_state_controller","screw_controller"], 1)
-        # time.sleep(1)
 
-        print('Removing current robot')
-        self.destroyer.call(self.robot_name)
-
-        print('Spawning a new robot')
-        self.spawner.call(self.robot_name, self.robot_urdf, "", self.robot_pose, "world")
-        time.sleep(3)
-
-        print('Setting joint values to home position')
-        self.set_joints.call(self.robot_name, "robot_description", ["shoulder_pan_joint","shoulder_lift_joint","elbow_joint","wrist_1_joint","wrist_2_joint","wrist_3_joint"], [0, -1.5707, 1.5707, -1.5707, -1.5707, 0])
-        time.sleep(1)
-
-        print('Reset world')
-        rospy.ServiceProxy('/gazebo/reset_world', Empty)
-        
-        print('Reset simulaiton')
-        rospy.ServiceProxy('/gazebo/reset_simulation', Empty)
-        
-        print('Unpause')
-        rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
-        time.sleep(1)
-
-        # print('Starting controllers again')
-        # controller_switcher.call(["arm_controller","joint_state_controller","screw_controller"], [], 1)
-            
 
 
 if __name__ == "__main__":
+    print('Waiting for the controller to start')
+    rospy.wait_for_service('/move_group/get_loggers')
+    print ('The controller seems to be starded so I proceed to launch the reset service')
     resetter = RobotReset()
     rospy.spin()

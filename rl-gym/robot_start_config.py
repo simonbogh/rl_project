@@ -1,20 +1,23 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 import sys
-import copy
-import rospy
+import time
 import moveit_commander
 import moveit_msgs.msg
-import geometry_msgs.msg
+import rospy
 
+rospy.init_node('robot_start_config_node', anonymous=True)
+
+#Setup moveit for interfacing and controlling the UR5 robot in Gazebo
 moveit_commander.roscpp_initialize(sys.argv)
-rospy.init_node('move_bit', anonymous=True)
 
+#creating a RobotCommander object, which acts as an interface to our robot.
 robot = moveit_commander.RobotCommander()
-scene = moveit_commander.PlanningSceneInterface()    
+
+#creating a PlanningSceneInterface object, which is an interface to the world that surrounds the robot.
+scene = moveit_commander.PlanningSceneInterface()
 group = moveit_commander.MoveGroupCommander("arm")
-display_trajectory_publisher = rospy.Publisher('/move_group/display_planned_path', moveit_msgs.msg.DisplayTrajectory)
-#Next, we are getting the current values of the joints.
+
 group_variable_values = group.get_current_joint_values()
 #Now, we modify the value of 1 of the joints, and set this new joint value as a target.
 group_variable_values[0] = 0
@@ -28,6 +31,17 @@ group.set_joint_value_target(group_variable_values)
 plan2 = group.plan()
 #By executing this line of code, you will be telling your robot to execute the last trajectory that has been set for the Planning Group
 group.go(wait=True)
-rospy.sleep(5)
+time.sleep(5)
 
-moveit_commander.roscpp_shutdown()
+# Go to start position above screw
+current_pose = group.get_current_pose()
+current_pose.pose.position.x = 0.5
+current_pose.pose.position.y = 0.0
+current_pose.pose.position.z = 0.035
+
+group.set_pose_target(current_pose)
+group.plan()
+
+#executes the trajectory that has been set for the Planning Group
+group.go(wait=True)
+time.sleep(5)
